@@ -1,3 +1,6 @@
+========================
+    **SPECIFICATIONS**
+========================
 bus: AHB-Lite
 operation: memory-to-memory DMA
 
