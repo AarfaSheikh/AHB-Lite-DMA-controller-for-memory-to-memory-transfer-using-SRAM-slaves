@@ -1,6 +1,6 @@
-========================
-    **SPECIFICATIONS**
-========================
+# ---
+#    **SPECIFICATIONS**
+# ---
 bus: AHB-Lite
 operation: memory-to-memory DMA
 
@@ -19,48 +19,59 @@ alignment rule: word-aligned only
 completion: done bit + interrupt
 error cases: zero length, bad alignment, slave error
 
-========================
-========================
+---
 
-**AHB-Lite Master signals**
-*Address / Control signals (Master → Slave)*
-**Signal**	**Meaning**
-HADDR	address
-HTRANS	transfer type
-HWRITE	read/write
-HSIZE	transfer size
-HBURST	burst type
-HPROT	protection bits
-HWDATA	write data
+## **AHB-Lite Master signals**  
 
-**AHB-Lite Slave response signals**
-*Data / response (Slave → Master)*
-**Signal**	**Meaning**
-HRDATA	read data
-HREADY	transfer complete / stall
-HRESP	OKAY or ERROR
+### *Address / Control signals (Master → Slave)*
 
-*Shared bus/Global signals*
-**Signal**	**Meaning**
-HCLK	clock
-HRESETn	reset
-HSEL	slave select
+|**Signal**|	**Meaning** |
+|-------|-------------------|
+| HADDR |	address         |
+|HTRANS	| transfer type     |
+|HWRITE	| read/write        |
+|HSIZE	| transfer size     |
+|HBURST	| burst type        |
+|HPROT	| protection bits   |
+|HWDATA	| write data        |
 
-====
+## **AHB-Lite Slave response signals**
 
-**Read vs Write in AHB**
+### *Data / response (Slave → Master)*
 
-*Write*
+|**Signal**| **Meaning**            |
+|-------|---------------------------|
+|HRDATA	|read data                  |
+|HREADY |transfer complete / stall  |
+|HRESP	|OKAY or ERROR              |
+
+## *Shared bus/Global signals*
+
+|**Signal**|	**Meaning** |
+|-------|-------------------|
+|HCLK   |	clock           |
+|HRESETn|	reset           |
+|HSEL	| slave select      |
+
+---
+
+## **Read vs Write in AHB**
+
+### *Write*
+
 Master → HADDR
 Master → HWRITE = 1
 Master → HWDATA
 Slave  → HREADY
 
-*Read*
+### *Read*
+
 Master → HADDR
 Master → HWRITE = 0
 Slave  → HRDATA
 Slave  → HREADY
 
-====
+---
+
+
 
