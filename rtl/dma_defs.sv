@@ -117,10 +117,56 @@ package dma_defs;
         DMA_ERROR
     } dma_state_t;
 
+     // ============================================================
+    // AHB-Lite transfer type encodings
+    // ============================================================
+    parameter logic [1:0] HTRANS_IDLE   = 2'b00;
+    parameter logic [1:0] HTRANS_BUSY   = 2'b01;
+    parameter logic [1:0] HTRANS_NONSEQ = 2'b10;
+    parameter logic [1:0] HTRANS_SEQ    = 2'b11;
 
+    // ============================================================
+    // AHB-Lite response encodings
+    // ============================================================
+    parameter logic HRESP_OKAY  = 1'b0;
+    parameter logic HRESP_ERROR = 1'b1;
 
+    // ============================================================
+    // AHB-Lite transfer size encoding
+    // For v1, keep word-only transfers
+    // ============================================================
+    parameter logic [2:0] HSIZE_BYTE = 3'b000;
+    parameter logic [2:0] HSIZE_HALF = 3'b001;
+    parameter logic [2:0] HSIZE_WORD = 3'b010;
 
+    // ============================================================
+    // Helper function: check if address is word aligned
+    // ============================================================
+    function automatic logic is_word_aligned(input logic [ADDR_W-1:0] addr);
+        return (addr[1:0] == 2'b00); // so valid word addresses must be multiples of 4 & the bottom 2 bits of the address must be 00 for it to be word aligned (multiples of 4 have last 2 bits as 00)
+    endfunction
 
+    // ============================================================
+    // Helper function: convert byte address to SRAM word index
+    // Assumes word-aligned access
+    // ============================================================
+    function automatic logic [SRAM_ADDR_W-1:0] addr_to_word_index(
+        input logic [ADDR_W-1:0] addr,
+        input logic [ADDR_W-1:0] base
+    );
+        addr_to_word_index = (addr - base) >> 2; // addr - base → get offset from SRAM start; >> 2 → divide by 4 (since each word = 4 bytes)
+    // Tells how many "4-byte words" from the SRAM base is this address
+    endfunction
 
+    // ============================================================
+    // Helper function: address range check
+    // ============================================================
+    function automatic logic addr_in_range(
+        input logic [ADDR_W-1:0] addr,
+        input logic [ADDR_W-1:0] base,
+        input logic [ADDR_W-1:0] size
+    );
+        return ((addr >= base) && (addr < (base + size)));
+    endfunction
 
-    endpackage : dma_defs
+endpackage : dma_defs
