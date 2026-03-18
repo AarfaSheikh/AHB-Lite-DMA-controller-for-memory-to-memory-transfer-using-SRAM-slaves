@@ -1,43 +1,67 @@
 // Contains SRAM + AHB slave logic
 
-module sram_ahb_subsystem #(
-    parameter DATA_WIDTH = 32,
-    parameter ADDR_WIDTH = 16,
-    parameter MEM_SIZE = 1024
-) (
-    input wire clk,
-    input wire rst_n,
-    // AHB-Lite slave interface
-    input wire [ADDR_WIDTH-1:0] ahb_addr,
-    input wire [DATA_WIDTH-1:0] ahb_data_in,
-    output wire [DATA_WIDTH-1:0] ahb_data_out,
-    input wire ahb_write_en,
-    input wire ahb_sel,
-    output wire ahb_ready
+/* Features: 
+    * single-cycle SRAM
+    * 32-bit data
+    * no wait states (HREADY = 1)
+    * no error (HRESP = OKAY)
+    * word-aligned access
+*/
+
+module sram_ahb_subsystem (
+    input logic HCLK,
+    input logic HRESETn,
+
+    input logic [ADDR_W-1:0] HADDR,
+    input logic [DATA_W-1:0] HWDATA,
+    input logic HWRITE,
+    input logic [1:0] HTRANS,
+    input logic [2:0] HSIZE,
+
+    output logic [DATA_W-1:0] HRDATA,
+    output logic HREADY,
+    output logic HRESP
 );
 
+import dma_defs_pkg::*;
+
     // Internal signals
-    reg [DATA_WIDTH-1:0] sram [0:MEM_SIZE-1];
-    reg [DATA_WIDTH-1:0] data_out;
+    logic [DATA_W-1:0] sram [0:SRAM_WORDS-1];
+    logic [SRAM_ADDR_W-1:0] word_addr; // address decoding for SRAM
+
+    logic valid_size; // Check for valid transfer size (word-only)
+    logic valid_addr; // Check for valid address range (within SRAM)
+    logic valid_align; // Check for word-alignment
+    logic valid_transfer; // Overall transfer validity
+    logic access_error; // Indicates an access error (invalid size, address, or alignment)
+
+    assign valid_transfer = (HTRANS == HTRANS_NONSEQ) || (HTRANS == HTRANS_SEQ);
+
+    assign valid_size = (HSIZE == HSIZE_WORD);
+    assign valid_addr = addr_in_range(HADDR, SRAM_BASE, SRAM_SIZE); // check if address is within SRAM range
+    assign valid_align = is_word_aligned(HADDR);
+
+    assign access_error = valid_transfer && (!valid_size || !valid_addr || !valid_align);
+
+    assign word_addr = addr_to_word_index(HADDR, SRAM_BASE); // shift by 2 because word aligned (4 bytes)
     
-    // AHB-Lite slave logic
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            data_out <= 0;
-            ahb_ready <= 0;
-        end else if (ahb_sel) begin
-            if (ahb_write_en) begin
-                sram[ahb_addr] <= ahb_data_in; // Write to SRAM
-                ahb_ready <= 1; // Acknowledge write
-            end else begin
-                data_out <= sram[ahb_addr]; // Read from SRAM
-                ahb_ready <= 1; // Acknowledge read
+    assign HREADY = 1'b1;  // always ready
+    assign HRESP = access_error ? HRESP_ERROR : HRESP_OKAY; // if there's an access error, respond with ERROR; otherwise, respond with OKAY
+
+    // AHB-Lite read/write slave logic
+    always_ff @(posedge HCLK or negedge HRESETn) begin
+        if (!HRESETn) begin
+            HRDATA <= '0;
+        end
+        else begin
+            if (valid_transfer && !access_error) begin
+                if (HWRITE) begin
+                    sram[word_addr] <= HWDATA; // Write to SRAM
+                end else begin
+                    HRDATA <= sram[word_addr]; // Read from SRAM
+                end
             end
-        end else begin
-            ahb_ready <= 0; // Not selected, not ready
         end
     end
-
-    assign ahb_data_out = data_out;
 
 endmodule
