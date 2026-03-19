@@ -344,7 +344,7 @@ module dma_controller (
 
                                 DMA_DONE: begin
                                         busy_r <= 0;
-                                        done_r <= 0;
+                                        done_r <= 1;
                                         if (dma_irq_en) irq_r <= 1;
                                 end
 
