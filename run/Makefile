@@ -34,4 +34,4 @@ gui:
 	vsim $(TOP)
 
 clean:
-	rm -rf work transcript vsim.wlf
+	rm -rf work transcript vsim.wlf modelsim.ini
