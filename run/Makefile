@@ -21,17 +21,16 @@ SRCS = \
 all: compile run
 
 compile:
-	module load questa && \
-	vlib work && \
-	vmap work work && \
+	module load questa \
+	vlib work \
 	vlog $(SRCS)
 
 run:
-	module load questa && \
+	module load questa \
 	vsim -c $(TOP) -do "run -all; quit"
 
 gui:
-	module load questa && \
+	module load questa \
 	vsim $(TOP)
 
 clean:
