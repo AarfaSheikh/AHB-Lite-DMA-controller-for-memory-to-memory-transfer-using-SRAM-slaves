@@ -172,7 +172,7 @@ import dma_defs_pkg::*;
         // --------------------------------------------------------
         $display("\nTEST 1: Single transfer basic copy");
         clear_srams(16);
-        init_source_sram(8, 32'hA5000000);
+        init_source_sram(8);
 
         start_dma_transfer(
             1'b0,        // single mode
@@ -189,7 +189,7 @@ import dma_defs_pkg::*;
         end
         else begin
             $display("DMA DONE!");
-            check_destination_sram(8, 32'hA5000000);
+            check_destination_sram(8);
         end
 
         // --------------------------------------------------------
