@@ -1,0 +1,21 @@
+To run run_sim.sh
+
+```bash
+chmod +x run_sim.sh
+./run_sim.sh
+```
+
+---
+
+
+To run Makefile 
+
+```bash
+
+make          # compile + run
+make compile  # only compile
+make run      # only run
+make gui      # open waveform GUI
+make clean
+
+```
