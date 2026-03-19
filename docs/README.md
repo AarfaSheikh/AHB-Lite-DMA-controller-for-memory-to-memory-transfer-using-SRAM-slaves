@@ -1,4 +1,3 @@
----
 
 ## **Architecture Overview**
 
@@ -154,6 +153,8 @@ vlog tb_top_level_system.sv
 
 vsim tb_top_level_system
 run -all
+
+```
 
 ### Expected Output: 
 
