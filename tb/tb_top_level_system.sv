@@ -198,7 +198,7 @@ import dma_defs_pkg::*;
         apply_reset();
         $display("\nTEST 2: Burst mode transfer (INCR4)");
         clear_srams(16);
-        init_source_sram(8, 32'hB6000000);
+        init_source_sram(8);
 
         start_dma_transfer(
             1'b1,        // burst mode
@@ -215,7 +215,7 @@ import dma_defs_pkg::*;
         end
         else begin
             $display("DMA DONE!");
-            check_destination_sram(8, 32'hB6000000);
+            check_destination_sram(8);
         end
 
         // --------------------------------------------------------
@@ -309,7 +309,7 @@ import dma_defs_pkg::*;
         apply_reset();
         $display("\nTEST 8: Abort during transfer");
         clear_srams(16);
-        init_source_sram(8, 32'hC7000000);
+        init_source_sram(8);
 
         start_dma_transfer(
             1'b0,
