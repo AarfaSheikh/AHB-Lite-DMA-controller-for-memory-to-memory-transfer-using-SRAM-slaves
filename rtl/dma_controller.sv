@@ -266,11 +266,11 @@ module dma_controller (
 
                                 DMA_IDLE: begin
                                         busy_r <= 0;
-                                        done_r <= 0;
-                                        error_r <= 0;
-                                        err_code_r <= DMA_ERR_NONE;
 
                                         if (dma_start) begin
+                                                done_r <= 0;
+                                                error_r <= 0;
+                                                err_code_r <= DMA_ERR_NONE;
                                                 src_addr  <= src_addr_cfg;
                                                 dst_addr  <= dst_addr_cfg;
                                                 remaining <= length_cfg;
@@ -343,8 +343,6 @@ module dma_controller (
                                 end
 
                                 DMA_DONE: begin
-                                        busy_r <= 0;
-                                        done_r <= 1;
                                         if (dma_irq_en) irq_r <= 1;
                                 end
 
