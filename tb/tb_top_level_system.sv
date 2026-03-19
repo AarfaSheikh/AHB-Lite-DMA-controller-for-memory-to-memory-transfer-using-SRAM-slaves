@@ -332,7 +332,7 @@ import dma_defs_pkg::*;
         // Assert abort after a few cycles
         repeat (3) @(posedge HCLK);
         dma_abort <= 1'b1;
-        @(posedge HCLK);
+        repeat (2) @(posedge HCLK);
         dma_abort <= 1'b0;
 
         wait_for_completion();
