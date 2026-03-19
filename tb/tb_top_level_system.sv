@@ -91,6 +91,16 @@ import dma_defs_pkg::*;
         end
     endtask
 
+    task clear_srams(input int num_words);
+        int i;
+    begin
+        for (i = 0; i < num_words; i++) begin
+            dut.u_sram0.sram[i] = '0;
+            dut.u_sram1.sram[i] = '0;
+        end
+    end
+    endtask
+
     // ============================================================
     // Start DMA transfer
     // ============================================================
