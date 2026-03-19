@@ -1,6 +1,6 @@
 // DMA Definitions
 
-package dma_defs;
+package dma_defs_pkg;
 
     // ============================================================
     // Global project parameters
@@ -168,4 +168,4 @@ package dma_defs;
         return ((addr >= base) && (addr < (base + size)));
     endfunction
 
-endpackage : dma_defs
+endpackage : dma_defs_pkg

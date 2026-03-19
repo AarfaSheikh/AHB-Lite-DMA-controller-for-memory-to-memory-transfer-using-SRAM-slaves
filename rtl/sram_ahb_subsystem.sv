@@ -4,21 +4,23 @@
     * single-cycle SRAM
     * 32-bit data
     * no wait states (HREADY = 1)
-    * no error (HRESP = OKAY)
+    * HRESP = ERROR for invalid size / range / alignment
     * word-aligned access
 */
 
-module sram_ahb_subsystem (
+module sram_ahb_subsystem #(
+    parameter logic [dma_defs_pkg::ADDR_W-1:0] SRAM_BASE = dma_defs_pkg::SRAM0_BASE
+    )(
     input logic HCLK,
     input logic HRESETn,
 
-    input logic [ADDR_W-1:0] HADDR,
-    input logic [DATA_W-1:0] HWDATA,
+    input logic [dma_defs_pkg::ADDR_W-1:0] HADDR,
+    input logic [dma_defs_pkg::DATA_W-1:0] HWDATA,
     input logic HWRITE,
     input logic [1:0] HTRANS,
     input logic [2:0] HSIZE,
 
-    output logic [DATA_W-1:0] HRDATA,
+    output logic [dma_defs_pkg::DATA_W-1:0] HRDATA,
     output logic HREADY,
     output logic HRESP
 );

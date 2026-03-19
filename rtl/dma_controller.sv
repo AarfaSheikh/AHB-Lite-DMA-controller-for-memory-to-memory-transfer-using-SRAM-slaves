@@ -26,16 +26,16 @@ module dma_controller (
     input logic HCLK, 
     input logic HRESETn,
 
-    input logic [DATA_W-1:0] HRDATA,
+    input logic [dma_defs_pkg::DATA_W-1:0] HRDATA,
     input logic HREADY,
     input logic HRESP,
 
-    output logic [ADDR_W-1:0] HADDR,
+    output logic [dma_defs_pkg::ADDR_W-1:0] HADDR,
     output logic [1:0] HTRANS,
     output logic HWRITE,
     output logic [2:0] HSIZE,
     output logic [2:0] HBURST, // 000- Single, 011 - 4-beat, 101 - 8-beat, 111 - 16-beat
-    output logic [DATA_W-1:0] HWDATA
+    output logic [dma_defs_pkg::DATA_W-1:0] HWDATA,
 
     // Configuration signals
     input logic dma_start,
@@ -43,9 +43,9 @@ module dma_controller (
     input logic dma_abort,
     input logic dma_mode, // 0 - single transfer, 1 - burst transfer
     input logic [2:0] burst_length_cfg, // Valid if dma_mode = 1; Encodings: 000- 4-beat, 001 - 8-beat, 010 - 16-beat
-    input logic [ADDR_W-1:0] src_addr_cfg,
-    input logic [ADDR_W-1:0] dst_addr_cfg,
-    input logic [15:0] length_cfg, // Number of bytes to transfer
+    input logic [dma_defs_pkg::ADDR_W-1:0] src_addr_cfg,
+    input logic [dma_defs_pkg::ADDR_W-1:0] dst_addr_cfg,
+    input logic [dma_defs_pkg::DATA_W-1:0] length_cfg, // Number of 32-bit words to transfer
     
     // Status outputs
     output logic dma_busy,
@@ -78,13 +78,13 @@ module dma_controller (
         // HBURST logic
         // ============================================================
         always_comb begin
-                if (mode == DMA_MODE_SINGLE)
+                if (dma_mode == DMA_MODE_SINGLE)
                 HBURST = 3'b000;
                 else begin
-                        case (burst_len)
-                                4:  HBURST = 3'b011;
-                                8:  HBURST = 3'b101;
-                                16: HBURST = 3'b111;
+                        case (burst_length_cfg)
+                                3'b000:  HBURST = 3'b011;
+                                3'b001:  HBURST = 3'b101;
+                                3'b010:  HBURST = 3'b111;
                                 default: HBURST = 3'b000;
                         endcase
                 end
@@ -109,7 +109,7 @@ module dma_controller (
 
                 DMA_READ_WAIT: begin // Wait for read data to be ready; keep address and control signals stable until then
                         HADDR  = src_addr;
-                        HTRANS = mode ? HTRANS_SEQ : HTRANS_NONSEQ;
+                        HTRANS = dma_mode ? HTRANS_SEQ : HTRANS_NONSEQ;
                         HWRITE = 0;
                 end
 
@@ -122,7 +122,7 @@ module dma_controller (
 
                 DMA_WRITE_WAIT: begin // Wait for write to complete; keep address, data, and control signals stable until then
                         HADDR  = dst_addr;
-                        HTRANS = mode ? HTRANS_SEQ : HTRANS_NONSEQ;
+                        HTRANS = dma_mode ? HTRANS_SEQ : HTRANS_NONSEQ;
                         HWRITE = 1;
                         HWDATA = data_reg;
                 end
@@ -172,22 +172,38 @@ module dma_controller (
                 case (current_state)
 
                 DMA_IDLE:
-                        if (start) next_state = DMA_SETUP;
+                        if (dma_start) next_state = DMA_SETUP;
 
-                DMA_SETUP:
-                        next_state = DMA_READ_ADDR;
+                DMA_SETUP: begin
+                        if(length_cfg == 0) next_state = DMA_ERROR; 
+                        else if (!addr_in_range(src_addr_cfg, SRAM0_BASE, SRAM_SIZE) || !addr_in_range(dst_addr_cfg, SRAM1_BASE, SRAM_SIZE)) next_state = DMA_ERROR;
+                        else if (!is_word_aligned(src_addr_cfg) || !is_word_aligned(dst_addr_cfg)) next_state = DMA_ERROR;
+                        else next_state = DMA_READ_ADDR;
+                end
 
                 DMA_READ_ADDR:
                         next_state = DMA_READ_WAIT;
 
-                DMA_READ_WAIT:
-                        if (HREADY) next_state = DMA_WRITE_ADDR;
+                DMA_READ_WAIT: begin
+                        if (dma_abort)
+                                next_state = DMA_ERROR;
+                        else if (HRESP == HRESP_ERROR)
+                                next_state = DMA_ERROR;
+                        else if (HREADY)
+                                next_state = DMA_WRITE_ADDR;
+                end
 
                 DMA_WRITE_ADDR:
                         next_state = DMA_WRITE_WAIT;
 
-                DMA_WRITE_WAIT:
-                        if (HREADY) next_state = DMA_UPDATE;
+                DMA_WRITE_WAIT: begin
+                        if (dma_abort)
+                                next_state = DMA_ERROR;
+                        else if (HRESP == HRESP_ERROR)
+                                next_state = DMA_ERROR;
+                        else if (HREADY)
+                                next_state = DMA_UPDATE;
+                end
 
                 DMA_UPDATE:
                         if (remaining == 1) // if only 1 word (4 bytes) left to transfer, this transfer will complete the entire transaction, so next state is DONE; otherwise, there are more transfers to do, so next state is READ_ADDR to start the next read
@@ -219,6 +235,7 @@ module dma_controller (
                 done_r  <= 0;
                 error_r <= 0;
                 irq_r   <= 0;
+                err_code_r <= DMA_ERR_NONE;
                 end
                 else begin
                         current_state <= next_state;
@@ -229,35 +246,95 @@ module dma_controller (
                                 DMA_IDLE: begin
                                         busy_r <= 0;
                                         done_r <= 0;
+                                        error_r <= 0;
+                                        err_code_r <= DMA_ERR_NONE;
 
-                                        if (start) begin
+                                        if (dma_start) begin
                                                 src_addr  <= src_addr_cfg;
                                                 dst_addr  <= dst_addr_cfg;
-                                                remaining <= len_cfg;
+                                                remaining <= length_cfg;
                                         end
                                 end
 
                                 DMA_SETUP: begin
                                         busy_r <= 1;
+
+                                        if (length_cfg == 0) begin
+                                                busy_r     <= 1'b0;
+                                                error_r    <= 1'b1;
+                                                err_code_r <= DMA_ERR_ZERO_LEN;
+                                        end
+                                        else if (!is_word_aligned(src_addr_cfg)) begin
+                                                busy_r     <= 1'b0;
+                                                error_r    <= 1'b1;
+                                                err_code_r <= DMA_ERR_SRC_ALIGN;
+                                        end
+                                        else if (!is_word_aligned(dst_addr_cfg)) begin
+                                                busy_r     <= 1'b0;
+                                                error_r    <= 1'b1;
+                                                err_code_r <= DMA_ERR_DST_ALIGN;
+                                        end
+                                        else if (!addr_in_range(src_addr_cfg, SRAM0_BASE, SRAM_SIZE) ||
+                                                !addr_in_range(dst_addr_cfg, SRAM1_BASE, SRAM_SIZE)) begin
+                                                busy_r     <= 1'b0;
+                                                error_r    <= 1'b1;
+                                                err_code_r <= DMA_ERR_OUT_OF_RANGE;
+                                        end
                                 end
 
                                 DMA_READ_WAIT: begin
-                                        if (HREADY)
-                                        data_reg <= HRDATA;
+                                        if (dma_abort) begin
+                                                busy_r     <= 1'b0;
+                                                error_r    <= 1'b1;
+                                                err_code_r <= DMA_ERR_ABORT;
+                                        end
+                                        else if (HRESP == HRESP_ERROR) begin
+                                                busy_r     <= 1'b0;
+                                                error_r    <= 1'b1;
+                                                err_code_r <= DMA_ERR_SLV_RESP;
+                                        end
+                                        else if (HREADY) begin
+                                                data_reg <= HRDATA; // capture read data into register to be used for write transaction
+                                        end
                                 end
 
                                 DMA_WRITE_WAIT: begin
-                                        if (HREADY) begin
-                                                src_addr  <= src_addr + DATA_W/8;
-                                                dst_addr  <= dst_addr + DATA_W/8;
-                                                remaining <= remaining - 1; // remaining length counts in number of words, not bytes; length_cfg should be initialized accordingly by software (length in bytes / (DATA_W/8))
+                                        if (dma_abort) begin
+                                                busy_r     <= 1'b0;
+                                                error_r    <= 1'b1;
+                                                err_code_r <= DMA_ERR_ABORT;
                                         end
+                                        else if (HRESP == HRESP_ERROR) begin
+                                                busy_r     <= 1'b0;
+                                                error_r    <= 1'b1;
+                                                err_code_r <= DMA_ERR_SLV_RESP;
+                                        end
+                                        else if (HREADY) begin
+                                                // After write completes, update source/destination addresses and remaining length for next transfer
+                                                src_addr <= src_addr + 4; // increment source address by word size (4 bytes)
+                                                dst_addr <= dst_addr + 4; // increment destination address by word size (4 bytes)
+                                                remaining <= remaining - 1; // decrement remaining length by word size (4 bytes)
+                                        end
+                                end
+
+                                DMA_UPDATE: begin
+                                        // This state is just for updating addresses and counters; no need to set control signals here since the next state will set them as needed based on dma_mode
                                 end
 
                                 DMA_DONE: begin
                                         busy_r <= 0;
                                         done_r <= 1;
-                                        if (irq_en) irq_r <= 1;
+                                        if (dma_irq_en) irq_r <= 1;
+                                end
+
+                                DMA_ERROR: begin
+                                        busy_r <= 0;
+                                        error_r <= 1;
+                                        if (dma_irq_en) irq_r <= 1;
+                                end
+
+                                default: begin
+                                        // hold
                                 end
 
                         endcase
