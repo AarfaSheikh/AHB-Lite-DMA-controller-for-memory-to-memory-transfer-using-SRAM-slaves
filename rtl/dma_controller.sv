@@ -158,7 +158,7 @@ module dma_controller (
         v
         DMA_UPDATE
         |
-        | remaining == 1 ? ------ yes ---> DMA_DONE ---> DMA_IDLE
+        | remaining == 0 ? ------ yes ---> DMA_DONE ---> DMA_IDLE
         | no
         v
         DMA_READ_ADDR ...
@@ -206,7 +206,7 @@ module dma_controller (
                 end
 
                 DMA_UPDATE:
-                        if (remaining == 1) // if only 1 word (4 bytes) left to transfer, this transfer will complete the entire transaction, so next state is DONE; otherwise, there are more transfers to do, so next state is READ_ADDR to start the next read
+                        if (remaining == 0) // if only 1 word (4 bytes) left to transfer, this transfer will complete the entire transaction, so next state is DONE; otherwise, there are more transfers to do, so next state is READ_ADDR to start the next read
                                 next_state = DMA_DONE;
                         else
                                 next_state = DMA_READ_ADDR;
