@@ -175,14 +175,27 @@ module dma_controller (
                         if (dma_start) next_state = DMA_SETUP;
 
                 DMA_SETUP: begin
-                        if(length_cfg == 0) next_state = DMA_ERROR; 
-                        else if (!addr_in_range(src_addr_cfg, SRAM0_BASE, SRAM_SIZE) || !addr_in_range(dst_addr_cfg, SRAM1_BASE, SRAM_SIZE)) next_state = DMA_ERROR;
-                        else if (!is_word_aligned(src_addr_cfg) || !is_word_aligned(dst_addr_cfg)) next_state = DMA_ERROR;
-                        else next_state = DMA_READ_ADDR;
+                        if (dma_abort && (current_state != DMA_IDLE) &&
+                                        (current_state != DMA_DONE) &&
+                                        (current_state != DMA_ERROR)) 
+                                next_state = DMA_ERROR;
+                        else begin
+                                if(length_cfg == 0) next_state = DMA_ERROR; 
+                                else if (!addr_in_range(src_addr_cfg, SRAM0_BASE, SRAM_SIZE) || !addr_in_range(dst_addr_cfg, SRAM1_BASE, SRAM_SIZE)) next_state = DMA_ERROR;
+                                else if (!is_word_aligned(src_addr_cfg) || !is_word_aligned(dst_addr_cfg)) next_state = DMA_ERROR;
+                                else next_state = DMA_READ_ADDR;
+                        end
                 end
 
-                DMA_READ_ADDR:
+                DMA_READ_ADDR: begin
+                        
+                        if (dma_abort && (current_state != DMA_IDLE) &&
+                                        (current_state != DMA_DONE) &&
+                                        (current_state != DMA_ERROR)) 
+                                next_state = DMA_ERROR;
+                        else
                         next_state = DMA_READ_WAIT;
+                end
 
                 DMA_READ_WAIT: begin
                         if (dma_abort)
@@ -193,8 +206,14 @@ module dma_controller (
                                 next_state = DMA_WRITE_ADDR;
                 end
 
-                DMA_WRITE_ADDR:
+                DMA_WRITE_ADDR: begin
+                        if (dma_abort && (current_state != DMA_IDLE) &&
+                                        (current_state != DMA_DONE) &&
+                                        (current_state != DMA_ERROR)) 
+                                next_state = DMA_ERROR;
+                        else        
                         next_state = DMA_WRITE_WAIT;
+                end
 
                 DMA_WRITE_WAIT: begin
                         if (dma_abort)
@@ -205,17 +224,27 @@ module dma_controller (
                                 next_state = DMA_UPDATE;
                 end
 
-                DMA_UPDATE:
-                        if (remaining == 0) // if only 1 word (4 bytes) left to transfer, this transfer will complete the entire transaction, so next state is DONE; otherwise, there are more transfers to do, so next state is READ_ADDR to start the next read
-                                next_state = DMA_DONE;
-                        else
-                                next_state = DMA_READ_ADDR;
+                DMA_UPDATE: begin
+                        if (dma_abort && (current_state != DMA_IDLE) &&
+                                        (current_state != DMA_DONE) &&
+                                        (current_state != DMA_ERROR)) 
+                                next_state = DMA_ERROR;
+                        else begin
+                                if (remaining == 0) // if only 1 word (4 bytes) left to transfer, this transfer will complete the entire transaction, so next state is DONE; otherwise, there are more transfers to do, so next state is READ_ADDR to start the next read
+                                        next_state = DMA_DONE;
+                                else
+                                        next_state = DMA_READ_ADDR;
+                        end
+                end
 
                 DMA_DONE:
                         next_state = DMA_IDLE;
 
                 DMA_ERROR:
                         next_state = DMA_IDLE;
+
+                default:
+                        //hold
 
                 endcase
         end
