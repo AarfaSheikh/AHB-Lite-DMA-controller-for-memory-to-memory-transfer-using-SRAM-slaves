@@ -175,9 +175,7 @@ module dma_controller (
                         if (dma_start) next_state = DMA_SETUP;
 
                 DMA_SETUP: begin
-                        if (dma_abort && (current_state != DMA_IDLE) &&
-                                        (current_state != DMA_DONE) &&
-                                        (current_state != DMA_ERROR)) 
+                        if (dma_abort) 
                                 next_state = DMA_ERROR;
                         else begin
                                 if(length_cfg == 0) next_state = DMA_ERROR; 
@@ -189,9 +187,7 @@ module dma_controller (
 
                 DMA_READ_ADDR: begin
                         
-                        if (dma_abort && (current_state != DMA_IDLE) &&
-                                        (current_state != DMA_DONE) &&
-                                        (current_state != DMA_ERROR)) 
+                        if (dma_abort) 
                                 next_state = DMA_ERROR;
                         else
                         next_state = DMA_READ_WAIT;
@@ -207,12 +203,10 @@ module dma_controller (
                 end
 
                 DMA_WRITE_ADDR: begin
-                        if (dma_abort && (current_state != DMA_IDLE) &&
-                                        (current_state != DMA_DONE) &&
-                                        (current_state != DMA_ERROR)) 
+                        if (dma_abort) 
                                 next_state = DMA_ERROR;
                         else        
-                        next_state = DMA_WRITE_WAIT;
+                                next_state = DMA_WRITE_WAIT;
                 end
 
                 DMA_WRITE_WAIT: begin
@@ -225,10 +219,8 @@ module dma_controller (
                 end
 
                 DMA_UPDATE: begin
-                        if (dma_abort && (current_state != DMA_IDLE) &&
-                                        (current_state != DMA_DONE) &&
-                                        (current_state != DMA_ERROR)) 
-                                next_state = DMA_ERROR;
+                        if (dma_abort) begin
+                                next_state = DMA_ERROR; end
                         else begin
                                 if (remaining == 0) // if only 1 word (4 bytes) left to transfer, this transfer will complete the entire transaction, so next state is DONE; otherwise, there are more transfers to do, so next state is READ_ADDR to start the next read
                                         next_state = DMA_DONE;
@@ -244,7 +236,7 @@ module dma_controller (
                         next_state = DMA_IDLE;
 
                 default:
-                        //hold
+                        next_state = current_state;
 
                 endcase
         end
