@@ -117,6 +117,13 @@ import dma_defs_pkg::*;
     end
     endtask
 
+    task wait_for_completion;
+    begin
+        wait (dma_done == 1'b1 || dma_error == 1'b1);
+        @(posedge HCLK);
+    end
+    endtask
+
      // ============================================================
     // Check destination SRAM contents
     // ============================================================
@@ -135,6 +142,21 @@ import dma_defs_pkg::*;
     end
     endtask
 
+     task expect_error(input logic [3:0] expected_err);
+    begin
+        if (!dma_error) begin
+            $display("ERROR: Expected dma_error=1, got 0");
+        end
+        else if (dma_error_code !== expected_err) begin
+            $display("ERROR: Expected error code %0d, got %0d",
+                     expected_err, dma_error_code);
+        end
+        else begin
+            $display("PASS: Expected error code %0d observed", expected_err);
+        end
+    end
+    endtask
+
     // ============================================================
     // Main stimulus
     // ============================================================
@@ -145,39 +167,175 @@ import dma_defs_pkg::*;
 
         apply_reset();
 
-        // Initialize 8 words in source SRAM
-        init_source_sram(8);
+        // --------------------------------------------------------
+        // TEST 1: Single transfer basic copy
+        // --------------------------------------------------------
+        $display("\nTEST 1: Single transfer basic copy");
+        clear_srams(16);
+        init_source_sram(8, 32'hA5000000);
 
-        // Configure addresses:
-        // word 0 of SRAM0 = SRAM0_BASE + 0
-        // word 0 of SRAM1 = SRAM1_BASE + 0
         start_dma_transfer(
-            1'b0,            // single transfer mode
-            3'b000,          // burst config ignored in single mode
-            SRAM0_BASE,      // source base
-            SRAM1_BASE,      // destination base
-            8                // transfer 8 words
+            1'b0,        // single mode
+            3'b000,      // ignored
+            SRAM0_BASE,
+            SRAM1_BASE,
+            8            // 8 words
         );
 
-        // Wait for completion
-        wait (dma_done == 1'b1 || dma_error == 1'b1);
-        @(posedge HCLK);
+        wait_for_completion();
 
         if (dma_error) begin
-            $display("DMA ERROR! code = %0d", dma_error_code);
+            $display("TEST 1 FAILED: unexpected dma_error, code=%0d", dma_error_code);
         end
         else begin
             $display("DMA DONE!");
-            check_destination_sram(8);
+            check_destination_sram(8, 32'hA5000000);
         end
 
-        $display("======================================");
-        $display("Testbench finished");
+        // --------------------------------------------------------
+        // TEST 2: Burst mode transfer (INCR4)
+        // --------------------------------------------------------
+        apply_reset();
+        $display("\nTEST 2: Burst mode transfer (INCR4)");
+        clear_srams(16);
+        init_source_sram(8, 32'hB6000000);
+
+        start_dma_transfer(
+            1'b1,        // burst mode
+            3'b000,      // INCR4
+            SRAM0_BASE,
+            SRAM1_BASE,
+            8
+        );
+
+        wait_for_completion();
+
+        if (dma_error) begin
+            $display("TEST 2 FAILED: unexpected dma_error, code=%0d", dma_error_code);
+        end
+        else begin
+            $display("DMA DONE!");
+            check_destination_sram(8, 32'hB6000000);
+        end
+
+        // --------------------------------------------------------
+        // TEST 3: Zero-length transfer
+        // --------------------------------------------------------
+        apply_reset();
+        $display("\nTEST 3: Zero-length transfer");
+
+        start_dma_transfer(
+            1'b0,
+            3'b000,
+            SRAM0_BASE,
+            SRAM1_BASE,
+            0
+        );
+
+        wait_for_completion();
+        expect_error(DMA_ERR_ZERO_LEN);
+
+        // --------------------------------------------------------
+        // TEST 4: Misaligned source address
+        // --------------------------------------------------------
+        apply_reset();
+        $display("\nTEST 4: Misaligned source address");
+
+        start_dma_transfer(
+            1'b0,
+            3'b000,
+            SRAM0_BASE + 1,
+            SRAM1_BASE,
+            4
+        );
+
+        wait_for_completion();
+        expect_error(DMA_ERR_SRC_ALIGN);
+
+        // --------------------------------------------------------
+        // TEST 5: Misaligned destination address
+        // --------------------------------------------------------
+        apply_reset();
+        $display("\nTEST 5: Misaligned destination address");
+
+        start_dma_transfer(
+            1'b0,
+            3'b000,
+            SRAM0_BASE,
+            SRAM1_BASE + 2,
+            4
+        );
+
+        wait_for_completion();
+        expect_error(DMA_ERR_DST_ALIGN);
+
+        // --------------------------------------------------------
+        // TEST 6: Out-of-range source address
+        // --------------------------------------------------------
+        apply_reset();
+        $display("\nTEST 6: Out-of-range source address");
+
+        start_dma_transfer(
+            1'b0,
+            3'b000,
+            32'h3000_0000,
+            SRAM1_BASE,
+            4
+        );
+
+        wait_for_completion();
+        expect_error(DMA_ERR_OUT_OF_RANGE);
+
+        // --------------------------------------------------------
+        // TEST 7: Out-of-range destination address
+        // --------------------------------------------------------
+        apply_reset();
+        $display("\nTEST 7: Out-of-range destination address");
+
+        start_dma_transfer(
+            1'b0,
+            3'b000,
+            SRAM0_BASE,
+            32'h4000_0000,
+            4
+        );
+
+        wait_for_completion();
+        expect_error(DMA_ERR_OUT_OF_RANGE);
+
+        // --------------------------------------------------------
+        // TEST 8: Abort during transfer
+        // --------------------------------------------------------
+        apply_reset();
+        $display("\nTEST 8: Abort during transfer");
+        clear_srams(16);
+        init_source_sram(8, 32'hC7000000);
+
+        start_dma_transfer(
+            1'b0,
+            3'b000,
+            SRAM0_BASE,
+            SRAM1_BASE,
+            8
+        );
+
+        // Assert abort after a few cycles
+        repeat (3) @(posedge HCLK);
+        dma_abort <= 1'b1;
+        @(posedge HCLK);
+        dma_abort <= 1'b0;
+
+        wait_for_completion();
+        expect_error(DMA_ERR_ABORT);
+
+        $display("\n======================================");
+        $display("All planned tests completed");
         $display("======================================");
 
         #20;
         $finish;
     end
+
 
     
     endmodule
